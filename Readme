@@ -7,11 +7,8 @@ High-Level Flow:
 ---------------------------------------
 
 1. Developer pushes/creates/deletes a branch in Repo A.
-
 2. CodeCommit emits an event.
-
 3. EventBridge rule catches the event.
-
 4. EventBridge invokes an ECS task.
 
 
@@ -19,11 +16,8 @@ High-Level Flow:
 ECS task:
 ====================
 1. Clones Repo A
-
 2. Pushes changes to Repo B
-
 3. Repo B stays in sync as a read-only replica.
-
 
 ====================
 ✅ Detailed Steps
@@ -31,9 +25,7 @@ ECS task:
 ✅ 1. Create Repositories
 
 Region us-east-1 → RepoA
-
 Region us-west-2 → RepoB
-
 Repo B should not be used for direct developer commits.
 
 ====================
@@ -42,17 +34,11 @@ Repo B should not be used for direct developer commits.
 Create a CodeCommit → EventBridge notification rule for:
 
 ReferenceCreated
-
 ReferenceUpdated
-
 ReferenceDeleted
-
 These events correspond to:
-
 Branch create
-
 Push to branch
-
 Branch delete
 
 ========================================
@@ -83,9 +69,7 @@ Target: ECS Task (Fargate or EC2)
 Docker container runs a script to:
 
 git clone Repo A
-
 Configure credentials
-
 git push to Repo B
 
 Example script (simplified):
@@ -182,9 +166,7 @@ No static passwords required.
 ✅ 7. Network Setup
 
 ECS task must have outbound HTTPS access
-
 No VPC peering required
-
 NAT Gateway required if private subnets
 
 
@@ -192,13 +174,9 @@ NAT Gateway required if private subnets
 ✅ 8. Testing
 
 Push a new branch to Repo A
-
 Verify EventBridge fired
-
 Check ECS logs
-
 Confirm branch exists in Repo B
-
 Test deletes & tag changes too.
 ========================================
 
