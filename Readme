@@ -1,24 +1,22 @@
-Code-Commit cross region replication
+---------------------------------------------------------------------------------------------------------------
+-------------------------------------Code-Commit cross region replication-------------------------------------
+---------------------------------------------------------------------------------------------------------------
+
 -------------------------------------
 Automatically replicate Git changes (pushes, branch create/delete) from Repository A (Region us-east-1) to Repository B (Region us-west-2).
 
-
 High-Level Flow:
 ---------------------------------------
-
 1. Developer pushes/creates/deletes a branch in Repo A.
 2. CodeCommit emits an event.
 3. EventBridge rule catches the event.
 4. EventBridge invokes an ECS task.
-
-
 ====================
 ECS task:
 ====================
 1. Clones Repo A
 2. Pushes changes to Repo B
 3. Repo B stays in sync as a read-only replica.
-
 ====================
 ✅ Detailed Steps
 ====================
@@ -40,7 +38,6 @@ These events correspond to:
 Branch create
 Push to branch
 Branch delete
-
 ========================================
 ✅ 3. Create EventBridge Rule
 
@@ -60,9 +57,7 @@ Event Pattern:
   }
 }
 
-
 Target: ECS Task (Fargate or EC2)
-
 ========================================
 ✅ 4. Create ECS Task Definition
 
@@ -82,8 +77,6 @@ git push --mirror replica
 
 
 Use --mirror to replicate branches/tags/deletes.
-
-
 ========================================
 ✅ 5. IAM Roles & Policies
 
@@ -121,7 +114,6 @@ To pull images and write logs:
 }
 
 ✅ C. ECS Task Role (MOST IMPORTANT)
-
 Must allow Git access to CodeCommit in both regions:
 
 {
@@ -149,8 +141,6 @@ Must allow Git access to CodeCommit in both regions:
 
 ✔ Repo A = Pull only
 ✔ Repo B = Push only (makes it a replica)
-
-
 ========================================
 ✅ 6. Credential Handling
 
@@ -161,15 +151,12 @@ git config --global credential.UseHttpPath true
 
 
 No static passwords required.
-
 ========================================
 ✅ 7. Network Setup
 
 ECS task must have outbound HTTPS access
 No VPC peering required
 NAT Gateway required if private subnets
-
-
 ========================================
 ✅ 8. Testing
 
@@ -179,9 +166,6 @@ Check ECS logs
 Confirm branch exists in Repo B
 Test deletes & tag changes too.
 ========================================
-
-
-
 
 ================================================================================
 ================================================================================
@@ -204,22 +188,18 @@ Security & Policy Best Practices
 ✅ Enable CloudTrail for audit
 ✅ Rotate ECS image frequently
 
-
-
-
-
 ================================================================================
 ================================================================================
 ================================================================================
 ✅ Deliverables Checklist
 ================================================================================
-Component	Status
-Repo A / Repo B	✅
-EventBridge Rule	✅
-ECS Task Definition	✅
-IAM Policies	✅
-Logging	✅
-Test Plan	✅
+Component Status
+Repo A / Repo B ✅
+EventBridge Rule  ✅
+ECS Task Definition ✅
+IAM Policies  ✅
+Logging ✅
+Test Plan ✅
 ================================================================================
 ================================================================================
 ================================================================================
