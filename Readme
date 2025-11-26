@@ -1,0 +1,247 @@
+Code-Commit cross region replication
+-------------------------------------
+Automatically replicate Git changes (pushes, branch create/delete) from Repository A (Region us-east-1) to Repository B (Region us-west-2).
+
+
+High-Level Flow:
+---------------------------------------
+
+1. Developer pushes/creates/deletes a branch in Repo A.
+
+2. CodeCommit emits an event.
+
+3. EventBridge rule catches the event.
+
+4. EventBridge invokes an ECS task.
+
+
+====================
+ECS task:
+====================
+1. Clones Repo A
+
+2. Pushes changes to Repo B
+
+3. Repo B stays in sync as a read-only replica.
+
+
+====================
+✅ Detailed Steps
+====================
+✅ 1. Create Repositories
+
+Region us-east-1 → RepoA
+
+Region us-west-2 → RepoB
+
+Repo B should not be used for direct developer commits.
+
+====================
+✅ 2. Enable CodeCommit Notifications (Repo A)
+
+Create a CodeCommit → EventBridge notification rule for:
+
+ReferenceCreated
+
+ReferenceUpdated
+
+ReferenceDeleted
+
+These events correspond to:
+
+Branch create
+
+Push to branch
+
+Branch delete
+
+========================================
+✅ 3. Create EventBridge Rule
+
+Region: us-east-1
+
+Event Pattern:
+
+{
+  "source": ["aws.codecommit"],
+  "detail-type": ["CodeCommit Repository State Change"],
+  "detail": {
+    "event": [
+      "referenceCreated",
+      "referenceUpdated",
+      "referenceDeleted"
+    ]
+  }
+}
+
+
+Target: ECS Task (Fargate or EC2)
+
+========================================
+✅ 4. Create ECS Task Definition
+
+Docker container runs a script to:
+
+git clone Repo A
+
+Configure credentials
+
+git push to Repo B
+
+Example script (simplified):
+
+#!/bin/bash
+git clone --mirror $REPO_A_URL
+cd repoA.git
+git remote add replica $REPO_B_URL
+git push --mirror replica
+
+
+Use --mirror to replicate branches/tags/deletes.
+
+
+========================================
+✅ 5. IAM Roles & Policies
+
+✅ A. EventBridge → ECS Invoke Role
+
+Must allow EventBridge to start ECS Task:
+
+{
+  "Effect": "Allow",
+  "Action": "ecs:RunTask",
+  "Resource": "*"
+}
+
+
+And allow passing the task role:
+
+{
+  "Effect": "Allow",
+  "Action": "iam:PassRole",
+  "Resource": "arn:aws:iam::<ACCOUNT_ID>:role/<ECS_TASK_ROLE>"
+}
+
+✅ B. ECS Task Execution Role
+
+To pull images and write logs:
+
+{
+  "Effect": "Allow",
+  "Action": [
+    "ecr:*",
+    "logs:CreateLogStream",
+    "logs:PutLogEvents"
+  ],
+  "Resource": "*"
+}
+
+✅ C. ECS Task Role (MOST IMPORTANT)
+
+Must allow Git access to CodeCommit in both regions:
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AccessRepoA",
+      "Effect": "Allow",
+      "Action": [
+        "codecommit:GitPull"
+      ],
+      "Resource": "arn:aws:codecommit:us-east-1:<ACCOUNT_ID>:RepoA"
+    },
+    {
+      "Sid": "AccessRepoB",
+      "Effect": "Allow",
+      "Action": [
+        "codecommit:GitPush"
+      ],
+      "Resource": "arn:aws:codecommit:us-west-2:<ACCOUNT_ID>:RepoB"
+    }
+  ]
+}
+
+
+✔ Repo A = Pull only
+✔ Repo B = Push only (makes it a replica)
+
+
+========================================
+✅ 6. Credential Handling
+
+Use SigV4 Git credentials via AWS CLI inside the ECS task:
+
+git config --global credential.helper '!aws codecommit credential-helper $@'
+git config --global credential.UseHttpPath true
+
+
+No static passwords required.
+
+========================================
+✅ 7. Network Setup
+
+ECS task must have outbound HTTPS access
+
+No VPC peering required
+
+NAT Gateway required if private subnets
+
+
+========================================
+✅ 8. Testing
+
+Push a new branch to Repo A
+
+Verify EventBridge fired
+
+Check ECS logs
+
+Confirm branch exists in Repo B
+
+Test deletes & tag changes too.
+========================================
+
+
+
+
+================================================================================
+================================================================================
+Security & Policy Best Practices
+
+✅ Block direct developer pushes to Repo B using an IAM deny:
+
+{
+  "Effect": "Deny",
+  "Action": "codecommit:GitPush",
+  "Resource": "arn:aws:codecommit:us-west-2:<ACCOUNT_ID>:RepoB",
+  "Condition": {
+    "StringNotEquals": {
+      "aws:PrincipalArn": "arn:aws:iam::<ACCOUNT_ID>:role/<ECS_TASK_ROLE>"
+    }
+  }
+}
+
+✅ Encrypt both repos (default AWS KMS)
+✅ Enable CloudTrail for audit
+✅ Rotate ECS image frequently
+
+
+
+
+
+================================================================================
+================================================================================
+================================================================================
+✅ Deliverables Checklist
+================================================================================
+Component	Status
+Repo A / Repo B	✅
+EventBridge Rule	✅
+ECS Task Definition	✅
+IAM Policies	✅
+Logging	✅
+Test Plan	✅
+================================================================================
+================================================================================
+================================================================================
